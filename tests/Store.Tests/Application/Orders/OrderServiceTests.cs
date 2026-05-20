@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Moq;
+using Store.Application.Common.Persistence;
 using Store.Application.Common.Results;
 using Store.Application.Customers;
 using Store.Application.Orders;
@@ -15,14 +16,21 @@ public sealed class OrderServiceTests
     private readonly Mock<ICustomerRepository> _customerRepository = new();
     private readonly Mock<IOrderRepository> _orderRepository = new();
     private readonly Mock<IProductRepository> _productRepository = new();
+    private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IUnitOfWorkTransaction> _transaction = new();
     private readonly OrderService _orderService;
 
     public OrderServiceTests()
     {
+        _unitOfWork
+            .Setup(unitOfWork => unitOfWork.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(_transaction.Object);
+
         _orderService = new OrderService(
             _orderRepository.Object,
             _customerRepository.Object,
             _productRepository.Object,
+            _unitOfWork.Object,
             new CreateOrderRequestValidator());
     }
 
@@ -169,9 +177,125 @@ public sealed class OrderServiceTests
     }
 
     [Fact]
+    public async Task ConfirmAsync_ShouldReturnSuccess_WhenOrderIsPlaced()
+    {
+        var order = CreateOrder();
+        SetupOrderForUpdate(order);
+        SetupStockDecreaseSucceeds();
+
+        var result = await _orderService.ConfirmAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Success);
+        result.Value.Status.Should().Be(OrderStatus.Confirmed);
+        result.Value.ConfirmedAt.Should().NotBeNull();
+        
+        _productRepository.Verify(
+            repository => repository.DecreaseStockAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        
+        _orderRepository.Verify(
+            repository => repository.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        
+        _transaction.Verify(
+            transaction => transaction.CommitAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmAsync_ShouldReturnNotFound_WhenOrderDoesNotExist()
+    {
+        SetupOrderForUpdate(null);
+
+        var result = await _orderService.ConfirmAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.NotFound);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Code = "order.not_found",
+            Message = "Order not found."
+        });
+        
+        _transaction.Verify(
+            transaction => transaction.RollbackAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmAsync_ShouldReturnSuccessWithoutDecreasingStock_WhenOrderIsAlreadyConfirmed()
+    {
+        var order = CreateOrder();
+        order.Confirm();
+        SetupOrderForUpdate(order);
+
+        var result = await _orderService.ConfirmAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Success);
+        result.Value.Status.Should().Be(OrderStatus.Confirmed);
+        
+        _productRepository.Verify(
+            repository => repository.DecreaseStockAsync(
+                It.IsAny<long>(),
+                It.IsAny<long>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        
+        _transaction.Verify(
+            transaction => transaction.CommitAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmAsync_ShouldReturnBusinessRule_WhenOrderIsCanceled()
+    {
+        var order = CreateOrder();
+        order.Cancel();
+        SetupOrderForUpdate(order);
+
+        var result = await _orderService.ConfirmAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.BusinessRule);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Code = "order.canceled",
+            Message = "Canceled order cannot be confirmed."
+        });
+        
+        _transaction.Verify(
+            transaction => transaction.RollbackAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmAsync_ShouldReturnConflict_WhenStockDecreaseFails()
+    {
+        SetupOrderForUpdate(CreateOrder());
+        SetupStockDecreaseFails();
+
+        var result = await _orderService.ConfirmAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Conflict);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Code = "product.stock.conflict",
+            Message = "Product stock could not be decreased."
+        });
+        
+        _orderRepository.Verify(
+            repository => repository.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        
+        _transaction.Verify(
+            transaction => transaction.RollbackAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_ShouldReturnSuccess_WhenOrderExists()
     {
         var order = new Order(1, "BRL", [new OrderItem(1, 2, 10m)]);
+        
         _orderRepository
             .Setup(repository => repository.GetByIdAsync(
                 It.IsAny<long>(), It.IsAny<CancellationToken>()))
@@ -290,6 +414,40 @@ public sealed class OrderServiceTests
                 }
             ]
         };
+    }
+
+    private static Order CreateOrder()
+    {
+        return new Order(1, "BRL", [new OrderItem(1, 2, 10m)]);
+    }
+
+    private void SetupOrderForUpdate(Order? order)
+    {
+        _orderRepository
+            .Setup(repository => repository.GetByIdForUpdateAsync(
+                It.IsAny<long>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+    }
+
+    private void SetupStockDecreaseSucceeds()
+    {
+        _productRepository
+            .Setup(repository => repository.DecreaseStockAsync(
+                It.IsAny<long>(),
+                It.IsAny<long>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+    }
+
+    private void SetupStockDecreaseFails()
+    {
+        _productRepository
+            .Setup(repository => repository.DecreaseStockAsync(
+                It.IsAny<long>(),
+                It.IsAny<long>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
     }
 
     private void SetupCustomerExists()
