@@ -20,6 +20,13 @@ public sealed class OrderRepository(StoreDbContext dbContext) : IOrderRepository
             .FirstOrDefaultAsync(order => order.Id == id, cancellationToken);
     }
 
+    public async Task<Order?> GetByIdForUpdateAsync(long id, CancellationToken cancellationToken)
+    {
+        return await dbContext.Orders
+            .Include(order => order.Items)
+            .FirstOrDefaultAsync(order => order.Id == id, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken)
     {
         return await dbContext.Orders
@@ -27,5 +34,10 @@ public sealed class OrderRepository(StoreDbContext dbContext) : IOrderRepository
             .Include(order => order.Items)
             .OrderByDescending(order => order.CreatedAt)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

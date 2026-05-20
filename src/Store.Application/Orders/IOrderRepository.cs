@@ -6,5 +6,7 @@ public interface IOrderRepository
 {
     Task AddAsync(Order order, CancellationToken cancellationToken);
     Task<Order?> GetByIdAsync(long id, CancellationToken cancellationToken);
+    Task<Order?> GetByIdForUpdateAsync(long id, CancellationToken cancellationToken);
     Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken);
+    Task SaveChangesAsync(CancellationToken cancellationToken);
 }
