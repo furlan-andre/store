@@ -26,6 +26,14 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
         return result.ToActionResult();
     }
 
+    [HttpPost("{id:long}/cancel")]
+    public async Task<IActionResult> Cancel(long id, CancellationToken cancellationToken)
+    {
+        var result = await orderService.CancelAsync(id, cancellationToken);
+
+        return result.ToActionResult();
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
