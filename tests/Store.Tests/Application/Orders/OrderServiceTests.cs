@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Moq;
+using Store.Application.Common.Pagination;
 using Store.Application.Common.Persistence;
 using Store.Application.Common.Results;
 using Store.Application.Customers;
@@ -31,7 +32,8 @@ public sealed class OrderServiceTests
             _customerRepository.Object,
             _productRepository.Object,
             _unitOfWork.Object,
-            new CreateOrderRequestValidator());
+            new CreateOrderRequestValidator(),
+            new ListOrdersRequestValidator());
     }
 
     [Fact]
@@ -448,20 +450,27 @@ public sealed class OrderServiceTests
     [Fact]
     public async Task GetAllAsync_ShouldReturnSuccessWithOrders_WhenOrdersExist()
     {
+        var request = CreateListOrdersRequest();
         var orders = new List<Order>
         {
             new(1, "BRL", [new OrderItem(1, 1, 10m)]),
             new(2, "USD", [new OrderItem(2, 2, 5m)])
         };
         _orderRepository
-            .Setup(repository => repository.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(orders);
+            .Setup(repository => repository.GetAllAsync(
+                It.IsAny<ListOrdersRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreatePagedOrders(orders));
 
-        var result = await _orderService.GetAllAsync(CancellationToken.None);
+        var result = await _orderService.GetAllAsync(request, CancellationToken.None);
 
         result.Status.Should().Be(ResultStatus.Success);
-        result.Value.Should().HaveCount(2);
-        result.Value[0].Should().BeEquivalentTo(new OrderResponse
+        result.Value.Page.Should().Be(1);
+        result.Value.PageSize.Should().Be(20);
+        result.Value.TotalItems.Should().Be(2);
+        result.Value.TotalPages.Should().Be(1);
+        result.Value.Items.Should().HaveCount(2);
+        result.Value.Items[0].Should().BeEquivalentTo(new OrderResponse
         {
             Id = 0,
             CustomerId = 1,
@@ -486,16 +495,104 @@ public sealed class OrderServiceTests
     }
 
     [Fact]
-    public async Task GetAllAsync_ShouldReturnSuccessWithEmptyList_WhenOrdersDoNotExist()
+    public async Task GetAllAsync_ShouldSendFiltersToRepository_WhenFiltersAreProvided()
     {
-        _orderRepository
-            .Setup(repository => repository.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+        var createdFrom = DateTimeOffset.UtcNow.AddDays(-7);
+        var createdTo = DateTimeOffset.UtcNow;
+        var cancelledFrom = DateTimeOffset.UtcNow.AddDays(-3);
+        var cancelledTo = DateTimeOffset.UtcNow.AddDays(-1);
+        var request = CreateListOrdersRequest() with
+        {
+            CustomerId = 10,
+            Status = OrderStatus.Canceled,
+            CreatedFrom = createdFrom,
+            CreatedTo = createdTo,
+            CancelledFrom = cancelledFrom,
+            CancelledTo = cancelledTo
+        };
 
-        var result = await _orderService.GetAllAsync(CancellationToken.None);
+        _orderRepository
+            .Setup(repository => repository.GetAllAsync(
+                It.Is<ListOrdersRequest>(repositoryRequest =>
+                    repositoryRequest.Page == request.Page &&
+                    repositoryRequest.PageSize == request.PageSize &&
+                    repositoryRequest.CustomerId == request.CustomerId &&
+                    repositoryRequest.Status == request.Status &&
+                    repositoryRequest.CreatedFrom == request.CreatedFrom &&
+                    repositoryRequest.CreatedTo == request.CreatedTo &&
+                    repositoryRequest.CancelledFrom == request.CancelledFrom &&
+                    repositoryRequest.CancelledTo == request.CancelledTo),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreatePagedOrders([]));
+
+        var result = await _orderService.GetAllAsync(request, CancellationToken.None);
 
         result.Status.Should().Be(ResultStatus.Success);
-        result.Value.Should().BeEmpty();
+        _orderRepository.Verify(
+            repository => repository.GetAllAsync(
+                It.IsAny<ListOrdersRequest>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReturnSuccessWithEmptyList_WhenOrdersDoNotExist()
+    {
+        var request = CreateListOrdersRequest();
+        _orderRepository
+            .Setup(repository => repository.GetAllAsync(
+                It.IsAny<ListOrdersRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreatePagedOrders([]));
+
+        var result = await _orderService.GetAllAsync(request, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Success);
+        result.Value.Items.Should().BeEmpty();
+        result.Value.TotalItems.Should().Be(0);
+        result.Value.TotalPages.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReturnValidation_WhenPageIsInvalid()
+    {
+        var request = CreateListOrdersRequest() with { Page = 0 };
+
+        var result = await _orderService.GetAllAsync(request, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Validation);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Code = "orders.page.invalid",
+            Message = "Page must be greater than zero."
+        });
+        
+        _orderRepository.Verify(
+            repository => repository.GetAllAsync(
+                It.IsAny<ListOrdersRequest>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReturnValidation_WhenPageSizeExceedsLimit()
+    {
+        var request = CreateListOrdersRequest() with { PageSize = 101 };
+
+        var result = await _orderService.GetAllAsync(request, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Validation);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Code = "orders.page_size.max",
+            Message = "Page size cannot exceed 100."
+        });
+        
+        _orderRepository.Verify(
+            repository => repository.GetAllAsync(
+                It.IsAny<ListOrdersRequest>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     private static CreateOrderRequest CreateOrderRequest()
@@ -518,6 +615,27 @@ public sealed class OrderServiceTests
     private static Order CreateOrder()
     {
         return new Order(1, "BRL", [new OrderItem(1, 2, 10m)]);
+    }
+
+    private static ListOrdersRequest CreateListOrdersRequest()
+    {
+        return new ListOrdersRequest
+        {
+            Page = 1,
+            PageSize = 20
+        };
+    }
+
+    private static PagedResponse<Order> CreatePagedOrders(IReadOnlyList<Order> orders)
+    {
+        return new PagedResponse<Order>
+        {
+            Page = 1,
+            PageSize = 20,
+            TotalItems = orders.Count,
+            TotalPages = orders.Count == 0 ? 0 : 1,
+            Items = orders
+        };
     }
 
     private void SetupOrderForUpdate(Order? order)

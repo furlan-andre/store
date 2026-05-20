@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Store.API.Controllers;
+using Store.Application.Common.Pagination;
 using Store.Application.Common.Results;
 using Store.Application.Orders;
 using Store.Domain.Orders;
@@ -169,17 +170,37 @@ public sealed class OrdersControllerTests
     [Fact]
     public async Task GetAll_ShouldReturnOk_WhenOrdersAreListed()
     {
+        var request = CreateListOrdersRequest();
         var order = CreateOrderResponse();
-        var orders = new List<OrderResponse> { order };
+        var orders = CreatePagedOrderResponse(order);
 
         _orderService
-            .Setup(service => service.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<IReadOnlyList<OrderResponse>>.Success(orders));
+            .Setup(service => service.GetAllAsync(
+                It.IsAny<ListOrdersRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PagedResponse<OrderResponse>>.Success(orders));
 
-        var actionResult = await _controller.GetAll(CancellationToken.None);
+        var actionResult = await _controller.GetAll(request, CancellationToken.None);
 
         var okResult = actionResult.Should().BeOfType<OkObjectResult>().Subject;
         okResult.Value.Should().BeEquivalentTo(orders);
+    }
+
+    [Fact]
+    public async Task GetAll_ShouldReturnBadRequest_WhenRequestIsInvalid()
+    {
+        var request = CreateListOrdersRequest() with { Page = 0 };
+        var error = ResultError.Create("orders.page.invalid", "Page must be greater than zero.");
+
+        _orderService
+            .Setup(service => service.GetAllAsync(
+                It.IsAny<ListOrdersRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PagedResponse<OrderResponse>>.Validation(error));
+
+        var actionResult = await _controller.GetAll(request, CancellationToken.None);
+
+        actionResult.Should().BeOfType<BadRequestObjectResult>();
     }
 
     [Fact]
@@ -248,6 +269,27 @@ public sealed class OrdersControllerTests
                     Quantity = 1
                 }
             ]
+        };
+    }
+
+    private static ListOrdersRequest CreateListOrdersRequest()
+    {
+        return new ListOrdersRequest
+        {
+            Page = 1,
+            PageSize = 20
+        };
+    }
+
+    private static PagedResponse<OrderResponse> CreatePagedOrderResponse(OrderResponse order)
+    {
+        return new PagedResponse<OrderResponse>
+        {
+            Page = 1,
+            PageSize = 20,
+            TotalItems = 1,
+            TotalPages = 1,
+            Items = [order]
         };
     }
 }
