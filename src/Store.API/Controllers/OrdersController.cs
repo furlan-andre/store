@@ -35,9 +35,11 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] ListOrdersRequest request,
+        CancellationToken cancellationToken)
     {
-        var result = await orderService.GetAllAsync(cancellationToken);
+        var result = await orderService.GetAllAsync(request, cancellationToken);
 
         return result.ToActionResult();
     }
