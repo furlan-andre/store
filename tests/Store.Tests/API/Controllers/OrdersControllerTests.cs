@@ -19,6 +19,35 @@ public sealed class OrdersControllerTests
     }
 
     [Fact]
+    public async Task Cancel_ShouldReturnOk_WhenOrderIsCanceled()
+    {
+        var order = CreateOrderResponse();
+        _orderService
+            .Setup(service => service.CancelAsync(
+                It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.Success(order));
+
+        var actionResult = await _controller.Cancel(1, CancellationToken.None);
+
+        var okResult = actionResult.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(order);
+    }
+
+    [Fact]
+    public async Task Cancel_ShouldReturnNotFound_WhenOrderDoesNotExist()
+    {
+        var error = ResultError.Create("order.not_found", "Order not found.");
+        _orderService
+            .Setup(service => service.CancelAsync(
+                It.IsAny<long>(),  It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.NotFound(error));
+
+        var actionResult = await _controller.Cancel(1, CancellationToken.None);
+
+        actionResult.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
     public async Task Create_ShouldReturnCreated_WhenOrderIsCreated()
     {
         var request = CreateOrderRequest();

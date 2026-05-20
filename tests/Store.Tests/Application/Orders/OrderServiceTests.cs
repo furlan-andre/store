@@ -35,6 +35,105 @@ public sealed class OrderServiceTests
     }
 
     [Fact]
+    public async Task CancelAsync_ShouldReturnSuccessWithoutReturningStock_WhenOrderIsPlaced()
+    {
+        SetupOrderForUpdate(CreateOrder());
+
+        var result = await _orderService.CancelAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Success);
+        result.Value.Status.Should().Be(OrderStatus.Canceled);
+        result.Value.CancelledAt.Should().NotBeNull();
+        
+        _productRepository.Verify(
+            repository => repository.IncreaseStockAsync(
+                It.IsAny<long>(),
+                It.IsAny<long>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        
+        _orderRepository.Verify(
+            repository => repository.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        
+        _transaction.Verify(
+            transaction => transaction.CommitAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelAsync_ShouldReturnSuccessAndReturnStock_WhenOrderIsConfirmed()
+    {
+        var order = CreateOrder();
+        order.Confirm();
+        SetupOrderForUpdate(order);
+
+        var result = await _orderService.CancelAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Success);
+        result.Value.Status.Should().Be(OrderStatus.Canceled);
+        
+        _productRepository.Verify(
+            repository => repository.IncreaseStockAsync(1, 2, It.IsAny<CancellationToken>()),
+            Times.Once);
+        
+        _orderRepository.Verify(
+            repository => repository.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+        
+        _transaction.Verify(
+            transaction => transaction.CommitAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelAsync_ShouldReturnNotFound_WhenOrderDoesNotExist()
+    {
+        SetupOrderForUpdate(null);
+
+        var result = await _orderService.CancelAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.NotFound);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Code = "order.not_found",
+            Message = "Order not found."
+        });
+        
+        _transaction.Verify(
+            transaction => transaction.RollbackAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelAsync_ShouldReturnSuccessWithoutReturningStock_WhenOrderIsAlreadyCanceled()
+    {
+        var order = CreateOrder();
+        order.Cancel();
+        SetupOrderForUpdate(order);
+
+        var result = await _orderService.CancelAsync(1, CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Success);
+        result.Value.Status.Should().Be(OrderStatus.Canceled);
+        
+        _productRepository.Verify(
+            repository => repository.IncreaseStockAsync(
+                It.IsAny<long>(),
+                It.IsAny<long>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        
+        _orderRepository.Verify(
+            repository => repository.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        
+        _transaction.Verify(
+            transaction => transaction.CommitAsync(It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task CreateAsync_ShouldReturnSuccess_WhenRequestIsValid()
     {
         var request = CreateOrderRequest();

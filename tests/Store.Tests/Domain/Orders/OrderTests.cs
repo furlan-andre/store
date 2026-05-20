@@ -142,6 +142,18 @@ public sealed class OrderTests
     }
 
     [Fact]
+    public void Cancel_ShouldSetStatusToCanceled_WhenOrderIsConfirmed()
+    {
+        var order = CreateOrder();
+        order.Confirm();
+
+        order.Cancel();
+
+        order.Status.Should().Be(OrderStatus.Canceled);
+        order.CancelledAt.Should().NotBeNull();
+    }
+
+    [Fact]
     public void Cancel_ShouldKeepCancelledAt_WhenOrderIsAlreadyCanceled()
     {
         var order = CreateOrder();
