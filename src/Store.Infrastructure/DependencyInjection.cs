@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Store.Application.Common.Persistence;
 using Store.Application.Customers;
 using Store.Application.Orders;
 using Store.Application.Products;
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.AddDbContext<StoreDbContext>(options =>
             options.UseNpgsql(connectionString));
 
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IProductRepository, ProductRepository>();

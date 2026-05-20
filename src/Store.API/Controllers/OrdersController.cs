@@ -18,6 +18,14 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
         return result.ToCreatedActionResult(result.IsSuccess ? $"/orders/{result.Value.Id}" : null);
     }
 
+    [HttpPost("{id:long}/confirm")]
+    public async Task<IActionResult> Confirm(long id, CancellationToken cancellationToken)
+    {
+        var result = await orderService.ConfirmAsync(id, cancellationToken);
+
+        return result.ToActionResult();
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {

@@ -33,6 +33,29 @@ public sealed class Order
         Total = CalculateTotal();
     }
 
+    public void Confirm()
+    {
+        if (Status == OrderStatus.Canceled)
+            throw new InvalidOperationException("Canceled order cannot be confirmed.");
+
+        if (Status == OrderStatus.Confirmed)
+            return;
+        
+        Status = OrderStatus.Confirmed;
+        ConfirmedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void Cancel()
+    {
+        if (Status == OrderStatus.Canceled)
+        {
+            return;
+        }
+
+        Status = OrderStatus.Canceled;
+        CancelledAt = DateTimeOffset.UtcNow;
+    }
+
     private decimal CalculateTotal()
     {
         return _items.Sum(item => item.Subtotal);
