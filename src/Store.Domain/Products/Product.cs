@@ -50,30 +50,4 @@ public sealed class Product
             throw new ArgumentOutOfRangeException(nameof(availableQuantity), "Available quantity cannot be negative.");
         }
     }
-    
-    
-    public void IncreaseAvailableQuantity(long quantity)
-    {
-        if (quantity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
-        }
-
-        AvailableQuantity += quantity;
-    }
-
-    public void DecreaseAvailableQuantity(long quantity)
-    {
-        if (quantity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
-        }
-
-        if (quantity > AvailableQuantity)
-        {
-            throw new InvalidOperationException("Available quantity cannot be negative.");
-        }
-
-        AvailableQuantity -= quantity;
-    }
 }

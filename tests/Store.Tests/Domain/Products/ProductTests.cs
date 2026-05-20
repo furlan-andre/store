@@ -75,46 +75,4 @@ public sealed class ProductTests
             .And.ParamName.Should().Be("availableQuantity");
     }
 
-    [Fact]
-    public void IncreaseStock_ShouldIncreaseAvailableQuantity()
-    {
-        var product = new Product("Notebook", 10m, 1);
-
-        product.IncreaseAvailableQuantity(2);
-
-        product.AvailableQuantity.Should().Be(3);
-    }
-
-    [Fact]
-    public void IncreaseStock_ShouldThrow_WhenQuantityIsZero()
-    {
-        var product = new Product("Notebook", 10m, 1);
-
-        var act = () => product.IncreaseAvailableQuantity(0);
-
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithMessage("Quantity must be greater than zero.*")
-            .And.ParamName.Should().Be("quantity");
-    }
-
-    [Fact]
-    public void DecreaseStock_ShouldDecreaseAvailableQuantity()
-    {
-        var product = new Product("Notebook", 10m, 3);
-
-        product.DecreaseAvailableQuantity(2);
-
-        product.AvailableQuantity.Should().Be(1);
-    }
-
-    [Fact]
-    public void DecreaseStock_ShouldThrow_WhenQuantityIsGreaterThanAvailableQuantity()
-    {
-        var product = new Product("Notebook", 10m, 1);
-
-        var act = () => product.DecreaseAvailableQuantity(2);
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Available quantity cannot be negative.");
-    }
 }
