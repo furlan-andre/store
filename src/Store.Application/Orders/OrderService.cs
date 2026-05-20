@@ -1,4 +1,5 @@
 using FluentValidation;
+using Store.Application.Common.Persistence;
 using Store.Application.Common.Results;
 using Store.Application.Customers;
 using Store.Application.Products;
@@ -11,6 +12,7 @@ public sealed class OrderService(
     IOrderRepository orderRepository,
     ICustomerRepository customerRepository,
     IProductRepository productRepository,
+    IUnitOfWork unitOfWork,
     IValidator<CreateOrderRequest> createOrderRequestValidator) : IOrderService
 {
     public async Task<Result<OrderResponse>> CreateAsync(
@@ -45,6 +47,54 @@ public sealed class OrderService(
         var order = new Order(request.CustomerId, request.Currency, orderItems);
 
         await orderRepository.AddAsync(order, cancellationToken);
+
+        return Result<OrderResponse>.Success(MapToResponse(order));
+    }
+
+    public async Task<Result<OrderResponse>> ConfirmAsync(long id, CancellationToken cancellationToken)
+    {
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var order = await orderRepository.GetByIdForUpdateAsync(id, cancellationToken);
+        if (order is null)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return Result<OrderResponse>.NotFound(
+                ResultError.Create("order.not_found", "Order not found."));
+        }
+
+        if (order.Status == OrderStatus.Canceled)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return Result<OrderResponse>.BusinessRule(
+                ResultError.Create("order.canceled", "Canceled order cannot be confirmed."));
+        }
+        
+        if (order.Status == OrderStatus.Confirmed)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return Result<OrderResponse>.Success(MapToResponse(order));
+        }
+
+        foreach (var item in order.Items)
+        {
+            var stockDecreased = await productRepository.DecreaseStockAsync(
+                item.ProductId,
+                item.Quantity,
+                cancellationToken);
+        
+            if (!stockDecreased)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return Result<OrderResponse>.Conflict(
+                    ResultError.Create("product.stock.conflict", "Product stock could not be decreased."));
+            }
+        }
+        
+        order.Confirm();
+        await orderRepository.SaveChangesAsync(cancellationToken);
+        
+        await transaction.CommitAsync(cancellationToken);
 
         return Result<OrderResponse>.Success(MapToResponse(order));
     }
