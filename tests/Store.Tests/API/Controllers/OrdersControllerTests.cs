@@ -19,6 +19,68 @@ public sealed class OrdersControllerTests
     }
 
     [Fact]
+    public async Task Create_ShouldReturnCreated_WhenOrderIsCreated()
+    {
+        var request = CreateOrderRequest();
+        var order = CreateOrderResponse();
+        
+        _orderService
+            .Setup(service => service.CreateAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.Success(order));
+
+        var actionResult = await _controller.Create(request, CancellationToken.None);
+
+        var createdResult = actionResult.Should().BeOfType<CreatedResult>().Subject;
+        createdResult.Location.Should().Be($"/orders/{order.Id}");
+        createdResult.Value.Should().BeEquivalentTo(order);
+    }
+
+    [Fact]
+    public async Task Create_ShouldReturnBadRequest_WhenRequestIsInvalid()
+    {
+        var request = CreateOrderRequest();
+        var error = ResultError.Create("order.items.required", "Order must have at least one item.");
+        
+        _orderService
+            .Setup(service => service.CreateAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.Validation(error));
+
+        var actionResult = await _controller.Create(request, CancellationToken.None);
+
+        actionResult.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Create_ShouldReturnNotFound_WhenDependencyDoesNotExist()
+    {
+        var request = CreateOrderRequest();
+        var error = ResultError.Create("product.not_found", "Product not found.");
+        
+        _orderService
+            .Setup(service => service.CreateAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.NotFound(error));
+
+        var actionResult = await _controller.Create(request, CancellationToken.None);
+
+        actionResult.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task Create_ShouldReturnUnprocessableEntity_WhenBusinessRuleFails()
+    {
+        var request = CreateOrderRequest();
+        var error = ResultError.Create("product.stock.insufficient", "Product stock is insufficient.");
+        
+        _orderService
+            .Setup(service => service.CreateAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.BusinessRule(error));
+
+        var actionResult = await _controller.Create(request, CancellationToken.None);
+
+        actionResult.Should().BeOfType<UnprocessableEntityObjectResult>();
+    }
+
+    [Fact]
     public async Task GetAll_ShouldReturnOk_WhenOrdersAreListed()
     {
         var order = CreateOrderResponse();
@@ -81,6 +143,23 @@ public sealed class OrdersControllerTests
                     Quantity = 1,
                     UnitPrice = 10m,
                     Subtotal = 10m
+                }
+            ]
+        };
+    }
+
+    private static CreateOrderRequest CreateOrderRequest()
+    {
+        return new CreateOrderRequest
+        {
+            CustomerId = 1,
+            Currency = "BRL",
+            Items =
+            [
+                new CreateOrderItemRequest
+                {
+                    ProductId = 1,
+                    Quantity = 1
                 }
             ]
         };
