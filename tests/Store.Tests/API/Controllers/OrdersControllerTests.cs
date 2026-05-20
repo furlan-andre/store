@@ -81,6 +81,63 @@ public sealed class OrdersControllerTests
     }
 
     [Fact]
+    public async Task Confirm_ShouldReturnOk_WhenOrderIsConfirmed()
+    {
+        var order = CreateOrderResponse();
+        _orderService
+            .Setup(service => service.ConfirmAsync(
+                It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.Success(order));
+
+        var actionResult = await _controller.Confirm(1, CancellationToken.None);
+
+        var okResult = actionResult.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(order);
+    }
+
+    [Fact]
+    public async Task Confirm_ShouldReturnNotFound_WhenOrderDoesNotExist()
+    {
+        var error = ResultError.Create("order.not_found", "Order not found.");
+        _orderService
+            .Setup(service => service.ConfirmAsync(
+                It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.NotFound(error));
+
+        var actionResult = await _controller.Confirm(1, CancellationToken.None);
+
+        actionResult.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task Confirm_ShouldReturnUnprocessableEntity_WhenOrderIsCanceled()
+    {
+        var error = ResultError.Create("order.canceled", "Canceled order cannot be confirmed.");
+        _orderService
+            .Setup(service => service.ConfirmAsync(
+                It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.BusinessRule(error));
+
+        var actionResult = await _controller.Confirm(1, CancellationToken.None);
+
+        actionResult.Should().BeOfType<UnprocessableEntityObjectResult>();
+    }
+
+    [Fact]
+    public async Task Confirm_ShouldReturnConflict_WhenStockCannotBeDecreased()
+    {
+        var error = ResultError.Create("product.stock.conflict", "Product stock could not be decreased.");
+        _orderService
+            .Setup(service => service.ConfirmAsync(
+                It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<OrderResponse>.Conflict(error));
+
+        var actionResult = await _controller.Confirm(1, CancellationToken.None);
+
+        actionResult.Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
     public async Task GetAll_ShouldReturnOk_WhenOrdersAreListed()
     {
         var order = CreateOrderResponse();
