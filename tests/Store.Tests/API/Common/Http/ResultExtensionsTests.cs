@@ -41,31 +41,52 @@ public sealed class ResultExtensionsTests
         createdResult.Value.Should().Be(10);
     }
 
-    [Theory]
-    [InlineData(ResultStatus.Validation, StatusCodes.Status400BadRequest)]
-    [InlineData(ResultStatus.NotFound, StatusCodes.Status404NotFound)]
-    [InlineData(ResultStatus.Conflict, StatusCodes.Status409Conflict)]
-    [InlineData(ResultStatus.BusinessRule, StatusCodes.Status422UnprocessableEntity)]
-    public void ToActionResult_ShouldMapFailureStatusToHttpStatusCode(ResultStatus resultStatus, int expectedStatusCode)
+    [Fact]
+    public void ToActionResult_ShouldReturnBadRequest_WhenResultIsValidation()
     {
         var error = ResultError.Create("error", "Error.");
-        var result = CreateFailureResult(resultStatus, error);
+        var result = Result.Validation(error);
 
         var actionResult = result.ToActionResult();
 
-        var objectResult = actionResult.Should().BeAssignableTo<ObjectResult>().Subject;
-        objectResult.StatusCode.Should().Be(expectedStatusCode);
-        objectResult.Value.Should().BeEquivalentTo(new ErrorResponse
-        {
-            Errors =
-            [
-                new ErrorDetail
-                {
-                    Code = error.Code,
-                    Message = error.Message
-                }
-            ]
-        });
+        var objectResult = actionResult.Should().BeOfType<BadRequestObjectResult>().Subject;
+        objectResult.Value.Should().BeEquivalentTo(CreateErrorResponse(error));
+    }
+
+    [Fact]
+    public void ToActionResult_ShouldReturnNotFound_WhenResultIsNotFound()
+    {
+        var error = ResultError.Create("error", "Error.");
+        var result = Result.NotFound(error);
+
+        var actionResult = result.ToActionResult();
+
+        var objectResult = actionResult.Should().BeOfType<NotFoundObjectResult>().Subject;
+        objectResult.Value.Should().BeEquivalentTo(CreateErrorResponse(error));
+    }
+
+    [Fact]
+    public void ToActionResult_ShouldReturnConflict_WhenResultIsConflict()
+    {
+        var error = ResultError.Create("error", "Error.");
+        var result = Result.Conflict(error);
+
+        var actionResult = result.ToActionResult();
+
+        var objectResult = actionResult.Should().BeOfType<ConflictObjectResult>().Subject;
+        objectResult.Value.Should().BeEquivalentTo(CreateErrorResponse(error));
+    }
+
+    [Fact]
+    public void ToActionResult_ShouldReturnUnprocessableEntity_WhenResultIsBusinessRule()
+    {
+        var error = ResultError.Create("error", "Error.");
+        var result = Result.BusinessRule(error);
+
+        var actionResult = result.ToActionResult();
+
+        var objectResult = actionResult.Should().BeOfType<UnprocessableEntityObjectResult>().Subject;
+        objectResult.Value.Should().BeEquivalentTo(CreateErrorResponse(error));
     }
 
     [Fact]
@@ -77,7 +98,12 @@ public sealed class ResultExtensionsTests
         var actionResult = result.ToActionResult();
 
         var objectResult = actionResult.Should().BeOfType<NotFoundObjectResult>().Subject;
-        objectResult.Value.Should().BeEquivalentTo(new ErrorResponse
+        objectResult.Value.Should().BeEquivalentTo(CreateErrorResponse(error));
+    }
+
+    private static ErrorResponse CreateErrorResponse(ResultError error)
+    {
+        return new ErrorResponse
         {
             Errors =
             [
@@ -87,18 +113,6 @@ public sealed class ResultExtensionsTests
                     Message = error.Message
                 }
             ]
-        });
-    }
-
-    private static Result CreateFailureResult(ResultStatus status, ResultError error)
-    {
-        return status switch
-        {
-            ResultStatus.Validation => Result.Validation(error),
-            ResultStatus.NotFound => Result.NotFound(error),
-            ResultStatus.Conflict => Result.Conflict(error),
-            ResultStatus.BusinessRule => Result.BusinessRule(error),
-            _ => throw new InvalidOperationException("Unsupported status.")
         };
     }
 }

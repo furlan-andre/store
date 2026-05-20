@@ -27,25 +27,50 @@ public sealed class ResultTTests
             .WithMessage("Cannot access the value of a failed result.");
     }
 
-    [Theory]
-    [InlineData(ResultStatus.Validation)]
-    [InlineData(ResultStatus.NotFound)]
-    [InlineData(ResultStatus.Conflict)]
-    [InlineData(ResultStatus.BusinessRule)]
-    public void FailureFactories_ShouldCreateTypedResultWithExpectedStatus(ResultStatus expectedStatus)
+    [Fact]
+    public void Validation_ShouldCreateTypedFailedResultWithValidationStatus()
     {
         var error = ResultError.Create("error", "Error.");
 
-        var result = expectedStatus switch
-        {
-            ResultStatus.Validation => Result<string>.Validation(error),
-            ResultStatus.NotFound => Result<string>.NotFound(error),
-            ResultStatus.Conflict => Result<string>.Conflict(error),
-            ResultStatus.BusinessRule => Result<string>.BusinessRule(error),
-            _ => throw new InvalidOperationException("Unsupported status.")
-        };
+        var result = Result<string>.Validation(error);
 
-        result.Status.Should().Be(expectedStatus);
+        result.Status.Should().Be(ResultStatus.Validation);
+        result.IsSuccess.Should().BeFalse();
+        result.Errors.Should().ContainSingle().Which.Should().Be(error);
+    }
+
+    [Fact]
+    public void NotFound_ShouldCreateTypedFailedResultWithNotFoundStatus()
+    {
+        var error = ResultError.Create("error", "Error.");
+
+        var result = Result<string>.NotFound(error);
+
+        result.Status.Should().Be(ResultStatus.NotFound);
+        result.IsSuccess.Should().BeFalse();
+        result.Errors.Should().ContainSingle().Which.Should().Be(error);
+    }
+
+    [Fact]
+    public void Conflict_ShouldCreateTypedFailedResultWithConflictStatus()
+    {
+        var error = ResultError.Create("error", "Error.");
+
+        var result = Result<string>.Conflict(error);
+
+        result.Status.Should().Be(ResultStatus.Conflict);
+        result.IsSuccess.Should().BeFalse();
+        result.Errors.Should().ContainSingle().Which.Should().Be(error);
+    }
+
+    [Fact]
+    public void BusinessRule_ShouldCreateTypedFailedResultWithBusinessRuleStatus()
+    {
+        var error = ResultError.Create("error", "Error.");
+
+        var result = Result<string>.BusinessRule(error);
+
+        result.Status.Should().Be(ResultStatus.BusinessRule);
         result.IsSuccess.Should().BeFalse();
         result.Errors.Should().ContainSingle().Which.Should().Be(error);
     }
