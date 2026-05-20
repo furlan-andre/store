@@ -33,7 +33,7 @@ public sealed class SecurityPipelineTests
         await using var factory = new StoreApiFactory();
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/auth/login", new LoginRequest
+        var response = await client.PostAsJsonAsync("/auth/token", new LoginRequest
         {
             Username = "admin",
             Password = "admin"
@@ -53,7 +53,7 @@ public sealed class SecurityPipelineTests
         await using var factory = new StoreApiFactory();
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/auth/login", new LoginRequest
+        var response = await client.PostAsJsonAsync("/auth/token", new LoginRequest
         {
             Username = "admin",
             Password = "invalid"
@@ -77,7 +77,7 @@ public sealed class SecurityPipelineTests
 
     private static async Task<string> GetAccessTokenAsync(HttpClient client)
     {
-        var response = await client.PostAsJsonAsync("/auth/login", new LoginRequest
+        var response = await client.PostAsJsonAsync("/auth/token", new LoginRequest
         {
             Username = "admin",
             Password = "admin"
