@@ -15,6 +15,43 @@ public sealed class OrderService(
     IUnitOfWork unitOfWork,
     IValidator<CreateOrderRequest> createOrderRequestValidator) : IOrderService
 {
+    public async Task<Result<OrderResponse>> CancelAsync(long id, CancellationToken cancellationToken)
+    {
+        await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+        var order = await orderRepository.GetByIdForUpdateAsync(id, cancellationToken);
+        if (order is null)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return Result<OrderResponse>.NotFound(
+                ResultError.Create("order.not_found", "Order not found."));
+        }
+
+        if (order.Status == OrderStatus.Canceled)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return Result<OrderResponse>.Success(MapToResponse(order));
+        }
+
+        var shouldReturnStock = order.Status == OrderStatus.Confirmed;
+        if (shouldReturnStock)
+        {
+            foreach (var item in order.Items)
+            {
+                await productRepository.IncreaseStockAsync(
+                    item.ProductId,
+                    item.Quantity,
+                    cancellationToken);
+            }
+        }
+
+        order.Cancel();
+        await orderRepository.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return Result<OrderResponse>.Success(MapToResponse(order));
+    }
+
     public async Task<Result<OrderResponse>> CreateAsync(
         CreateOrderRequest request,
         CancellationToken cancellationToken)
