@@ -8,6 +8,16 @@ namespace Store.API.Controllers;
 [Route("orders")]
 public sealed class OrdersController(IOrderService orderService) : ControllerBase
 {
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        CreateOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await orderService.CreateAsync(request, cancellationToken);
+
+        return result.ToCreatedActionResult(result.IsSuccess ? $"/orders/{result.Value.Id}" : null);
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
