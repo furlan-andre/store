@@ -73,4 +73,89 @@ public sealed class OrderTests
             .WithMessage("Order must have at least one item.*")
             .And.ParamName.Should().Be("items");
     }
+
+    [Fact]
+    public void Confirm_ShouldSetStatusToConfirmed_WhenOrderIsPlaced()
+    {
+        var order = CreateOrder();
+
+        order.Confirm();
+
+        order.Status.Should().Be(OrderStatus.Confirmed);
+    }
+
+    [Fact]
+    public void Confirm_ShouldSetConfirmedAt_WhenOrderIsPlaced()
+    {
+        var order = CreateOrder();
+
+        order.Confirm();
+
+        order.ConfirmedAt.Should().NotBeNull();
+        order.ConfirmedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Confirm_ShouldKeepConfirmedAt_WhenOrderIsAlreadyConfirmed()
+    {
+        var order = CreateOrder();
+        order.Confirm();
+        var confirmedAt = order.ConfirmedAt;
+
+        order.Confirm();
+
+        order.Status.Should().Be(OrderStatus.Confirmed);
+        order.ConfirmedAt.Should().Be(confirmedAt);
+    }
+
+    [Fact]
+    public void Confirm_ShouldThrow_WhenOrderIsCanceled()
+    {
+        var order = CreateOrder();
+        order.Cancel();
+
+        var act = order.Confirm;
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Canceled order cannot be confirmed.");
+    }
+
+    [Fact]
+    public void Cancel_ShouldSetStatusToCanceled()
+    {
+        var order = CreateOrder();
+
+        order.Cancel();
+
+        order.Status.Should().Be(OrderStatus.Canceled);
+    }
+
+    [Fact]
+    public void Cancel_ShouldSetCancelledAt()
+    {
+        var order = CreateOrder();
+
+        order.Cancel();
+
+        order.CancelledAt.Should().NotBeNull();
+        order.CancelledAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Cancel_ShouldKeepCancelledAt_WhenOrderIsAlreadyCanceled()
+    {
+        var order = CreateOrder();
+        order.Cancel();
+        var cancelledAt = order.CancelledAt;
+
+        order.Cancel();
+
+        order.Status.Should().Be(OrderStatus.Canceled);
+        order.CancelledAt.Should().Be(cancelledAt);
+    }
+
+    private static Order CreateOrder()
+    {
+        return new Order(1, "BRL", [new OrderItem(1, 1, 10m)]);
+    }
 }
