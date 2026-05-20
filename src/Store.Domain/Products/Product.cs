@@ -5,11 +5,11 @@ public sealed class Product
     public const int NameMaxLength = 150;
     
     public long Id { get; private set; }
-    public string Name { get; private set; }
+    public string Name { get; private set; } = string.Empty;
     public decimal UnitPrice { get; private set; }
     public long AvailableQuantity { get; private set; }
  
-    private Product() {}
+    private Product() { }
     
     public Product(string name, decimal unitPrice, long availableQuantity)
     {
