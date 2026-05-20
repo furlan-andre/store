@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Store.API.Common.Http;
 using Store.Application.Products;
@@ -5,6 +6,7 @@ using Store.Application.Products;
 namespace Store.API.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("products")]
 public sealed class ProductsController(IProductService productService) : ControllerBase
 {
