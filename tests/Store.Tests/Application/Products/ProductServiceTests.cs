@@ -49,4 +49,51 @@ public sealed class ProductServiceTests
             Message = "Product not found."
         });
     }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReturnSuccessWithProducts_WhenProductsExist()
+    {
+        var products = new List<Product>
+        {
+            new("Keyboard", 150m, 5),
+            new("Mouse", 80m, 10)
+        };
+        
+        _productRepository
+            .Setup(repository => repository.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(products);
+
+        var result = await _productService.GetAllAsync(CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Success);
+        result.Value.Should().BeEquivalentTo([
+            new ProductResponse
+            {
+                Id = 0,
+                Name = "Keyboard",
+                UnitPrice = 150m,
+                AvailableQuantity = 5
+            },
+            new ProductResponse
+            {
+                Id = 0,
+                Name = "Mouse",
+                UnitPrice = 80m,
+                AvailableQuantity = 10
+            }
+        ]);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReturnSuccessWithEmptyList_WhenProductsDoNotExist()
+    {
+        _productRepository
+            .Setup(repository => repository.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var result = await _productService.GetAllAsync(CancellationToken.None);
+
+        result.Status.Should().Be(ResultStatus.Success);
+        result.Value.Should().BeEmpty();
+    }
 }

@@ -5,4 +5,5 @@ namespace Store.Application.Products;
 public interface IProductService
 {
     Task<Result<ProductResponse>> GetByIdAsync(long id, CancellationToken cancellationToken);
+    Task<Result<IReadOnlyList<ProductResponse>>> GetAllAsync(CancellationToken cancellationToken);
 }

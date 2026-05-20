@@ -16,8 +16,19 @@ public sealed class ProductService(IProductRepository productRepository) : IProd
         }
 
         var response = MapToResponse(product);
-        
+
         return Result<ProductResponse>.Success(response);
+    }
+
+    public async Task<Result<IReadOnlyList<ProductResponse>>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        var products = await productRepository.GetAllAsync(cancellationToken);
+
+        var response = products
+            .Select(MapToResponse)
+            .ToList();
+
+        return Result<IReadOnlyList<ProductResponse>>.Success(response);
     }
 
     private static ProductResponse MapToResponse(Product product)
