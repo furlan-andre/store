@@ -29,6 +29,20 @@ public sealed class ProductRepository(StoreDbContext dbContext) : IProductReposi
         return affectedRows == 1;
     }
 
+    public async Task IncreaseStockAsync(
+        long productId,
+        long quantity,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Products
+            .Where(product => product.Id == productId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    product => product.AvailableQuantity,
+                    product => product.AvailableQuantity + quantity),
+                cancellationToken);
+    }
+
     public async Task<Product?> GetByIdAsync(long id, CancellationToken cancellationToken)
     {
         return await dbContext.Products
