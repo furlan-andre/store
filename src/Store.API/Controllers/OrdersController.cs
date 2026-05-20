@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Store.API.Common.Http;
 using Store.Application.Orders;
@@ -5,6 +6,7 @@ using Store.Application.Orders;
 namespace Store.API.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("orders")]
 public sealed class OrdersController(IOrderService orderService) : ControllerBase
 {

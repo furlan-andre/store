@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Store.API.Common.Http;
 using Store.Application.Customers;
@@ -5,6 +6,7 @@ using Store.Application.Customers;
 namespace Store.API.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("customers")]
 public sealed class CustomersController(ICustomerService customerService) : ControllerBase
 {
