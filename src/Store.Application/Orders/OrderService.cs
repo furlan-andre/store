@@ -1,4 +1,5 @@
 using FluentValidation;
+using Store.Application.Common.Pagination;
 using Store.Application.Common.Persistence;
 using Store.Application.Common.Results;
 using Store.Application.Customers;
@@ -13,7 +14,8 @@ public sealed class OrderService(
     ICustomerRepository customerRepository,
     IProductRepository productRepository,
     IUnitOfWork unitOfWork,
-    IValidator<CreateOrderRequest> createOrderRequestValidator) : IOrderService
+    IValidator<CreateOrderRequest> createOrderRequestValidator,
+    IValidator<ListOrdersRequest> listOrdersRequestValidator) : IOrderService
 {
     public async Task<Result<OrderResponse>> CancelAsync(long id, CancellationToken cancellationToken)
     {
@@ -149,15 +151,30 @@ public sealed class OrderService(
         return Result<OrderResponse>.Success(MapToResponse(order));
     }
 
-    public async Task<Result<IReadOnlyList<OrderResponse>>> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<Result<PagedResponse<OrderResponse>>> GetAllAsync(
+        ListOrdersRequest request,
+        CancellationToken cancellationToken)
     {
-        var orders = await orderRepository.GetAllAsync(cancellationToken);
+        var validationResult = await ValidateListOrdersRequestAsync(request, cancellationToken);
+        if (!validationResult.IsSuccess)
+        {
+            return Result<PagedResponse<OrderResponse>>.Validation(validationResult.Errors.ToArray());
+        }
 
-        var response = orders
-            .Select(MapToResponse)
-            .ToList();
+        var orders = await orderRepository.GetAllAsync(request, cancellationToken);
 
-        return Result<IReadOnlyList<OrderResponse>>.Success(response);
+        var response = new PagedResponse<OrderResponse>
+        {
+            Page = orders.Page,
+            PageSize = orders.PageSize,
+            TotalItems = orders.TotalItems,
+            TotalPages = orders.TotalPages,
+            Items = orders.Items
+                .Select(MapToResponse)
+                .ToList()
+        };
+
+        return Result<PagedResponse<OrderResponse>>.Success(response);
     }
 
     private async Task<Result> ValidateCreateRequestAsync(
@@ -165,6 +182,20 @@ public sealed class OrderService(
         CancellationToken cancellationToken)
     {
         var validation = await createOrderRequestValidator.ValidateAsync(request, cancellationToken);
+
+        return validation.IsValid
+            ? Result.Success()
+            : Result.Validation(
+                validation.Errors
+                    .Select(error => ResultError.Create(error.ErrorCode, error.ErrorMessage))
+                    .ToArray());
+    }
+
+    private async Task<Result> ValidateListOrdersRequestAsync(
+        ListOrdersRequest request,
+        CancellationToken cancellationToken)
+    {
+        var validation = await listOrdersRequestValidator.ValidateAsync(request, cancellationToken);
 
         return validation.IsValid
             ? Result.Success()
