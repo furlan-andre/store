@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Store.Application.Customers;
 using Store.Application.Products;
 using Store.Infrastructure.Persistence;
 using Store.Infrastructure.Persistence.Repositories;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddDbContext<StoreDbContext>(options =>
             options.UseNpgsql(connectionString));
 
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddHostedService<DatabaseMigrationHostedService>();
 
