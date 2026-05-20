@@ -19,23 +19,5 @@ public sealed class StoreDbContext(DbContextOptions<StoreDbContext> options) : D
         modelBuilder.ApplyConfiguration(new OrderConfiguration());
         modelBuilder.ApplyConfiguration(new OrderItemConfiguration());
         modelBuilder.ApplyConfiguration(new ProductConfiguration());
-
-        RemoveOrderItemProductIdIndex(modelBuilder);
-    }
-
-    private static void RemoveOrderItemProductIdIndex(ModelBuilder modelBuilder)
-    {
-        var orderItemEntity = modelBuilder.Entity<OrderItem>().Metadata;
-        var productIdProperty = orderItemEntity.FindProperty(nameof(OrderItem.ProductId));
-        if (productIdProperty is null)
-        {
-            return;
-        }
-
-        var productIdIndex = orderItemEntity.FindIndex([productIdProperty]);
-        if (productIdIndex is not null)
-        {
-            orderItemEntity.RemoveIndex(productIdIndex);
-        }
     }
 }
